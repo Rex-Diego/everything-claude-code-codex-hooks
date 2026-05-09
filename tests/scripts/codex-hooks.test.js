@@ -259,6 +259,41 @@ if (
 else failed++;
 
 if (
+  test('install-codex-hooks treats shell-quoted Windows runner commands as managed', () => {
+    const { mergeHooks } = require(installCodexHooksScript);
+    const generatedGroup = {
+      hooks: [
+        {
+          type: 'command',
+          command: 'node "scripts/codex/codex-hook-runner.js" script "scripts/hooks/new.js"',
+        },
+      ],
+    };
+    const existing = {
+      hooks: {
+        PreToolUse: [
+          {
+            hooks: [
+              {
+                type: 'command',
+                command:
+                  'node "C:\\\\ecc root\\\\scripts\\\\codex\\\\codex-hook-runner.js" script "scripts/hooks/old.js"',
+              },
+            ],
+          },
+        ],
+      },
+    };
+
+    const merged = mergeHooks(existing, { PreToolUse: [generatedGroup] });
+
+    assert.deepStrictEqual(merged.hooks.PreToolUse, [generatedGroup]);
+  })
+)
+  passed++;
+else failed++;
+
+if (
   test('codex-hook-runner suppresses Claude pass-through stdout and emits valid Codex JSON', () => {
     const tempDir = createTempDir('codex-runner-pass-through-');
     const hookDir = path.join(tempDir, 'scripts', 'hooks');

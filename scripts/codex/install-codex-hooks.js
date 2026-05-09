@@ -23,7 +23,7 @@ const supportedCodexEvents = new Set([
   'PostToolUse',
   'Stop',
 ]);
-const managedCommandMarker = /scripts[\\/]codex[\\/]codex-hook-runner\.js/;
+const managedCommandMarker = /scripts[\\/]+codex[\\/]+codex-hook-runner\.js/;
 
 function usage() {
   console.error('Usage: install-codex-hooks.js <dest-hooks.json> [--dry-run] [--source <hooks.json>] [--command-root <path>]');

@@ -48,6 +48,8 @@ function buildExpectedPublishPaths(repoRoot) {
     "scripts/doctor.js",
     "scripts/status.js",
     "scripts/sessions-cli.js",
+    "scripts/codex/codex-hook-runner.js",
+    "scripts/codex/install-codex-hooks.js",
     "scripts/install-apply.js",
     "scripts/install-plan.js",
     "scripts/list-installed.js",

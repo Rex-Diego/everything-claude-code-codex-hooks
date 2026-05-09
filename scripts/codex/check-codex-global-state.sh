@@ -17,6 +17,7 @@ else
 fi
 
 CONFIG_FILE="$CODEX_HOME/config.toml"
+CODEX_HOOKS_FILE="$CODEX_HOME/hooks.json"
 AGENTS_FILE="$CODEX_HOME/AGENTS.md"
 PROMPTS_DIR="$CODEX_HOME/prompts"
 SKILLS_DIR="${AGENTS_HOME:-$HOME/.agents}/skills"
@@ -78,6 +79,7 @@ printf 'Repo: %s\n' "$REPO_ROOT"
 printf 'Codex home: %s\n\n' "$CODEX_HOME"
 
 require_file "$CONFIG_FILE" "Global config.toml"
+require_file "$CODEX_HOOKS_FILE" "Global hooks.json"
 require_file "$AGENTS_FILE" "Global AGENTS.md"
 
 if [[ -f "$AGENTS_FILE" ]]; then
@@ -95,6 +97,7 @@ if [[ -f "$AGENTS_FILE" ]]; then
 fi
 
 if [[ -f "$CONFIG_FILE" ]]; then
+  check_config_pattern '^(codex_hooks|hooks)[[:space:]]*=[[:space:]]*true' "Codex hooks are enabled"
   check_config_pattern '^multi_agent[[:space:]]*=[[:space:]]*true' "multi_agent is enabled"
   check_config_absent '^[[:space:]]*collab[[:space:]]*=' "deprecated collab flag is absent"
   # persistent_instructions is recommended but optional; warn instead of fail
@@ -139,6 +142,20 @@ if [[ -f "$CONFIG_FILE" ]]; then
 
   if [[ "$has_context7_legacy" -eq 1 && "$has_context7_current" -eq 1 ]]; then
     warn "Both [mcp_servers.context7] and [mcp_servers.context7-mcp] exist; prefer one name"
+  fi
+fi
+
+if [[ -f "$CODEX_HOOKS_FILE" ]]; then
+  if search_file '"PreToolUse"' "$CODEX_HOOKS_FILE"; then
+    ok "Codex hooks.json contains PreToolUse hooks"
+  else
+    fail "Codex hooks.json missing PreToolUse hooks"
+  fi
+
+  if search_file 'scripts/codex/codex-hook-runner\.js' "$CODEX_HOOKS_FILE"; then
+    ok "Codex hooks.json uses the ECC Codex hook runner"
+  else
+    fail "Codex hooks.json missing the ECC Codex hook runner"
   fi
 fi
 

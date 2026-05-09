@@ -11,6 +11,8 @@ const TOML = require('@iarna/toml');
 
 const repoRoot = path.join(__dirname, '..', '..');
 const installScript = path.join(repoRoot, 'scripts', 'codex', 'install-global-git-hooks.sh');
+const codexHookRunnerScript = path.join(repoRoot, 'scripts', 'codex', 'codex-hook-runner.js');
+const installCodexHooksScript = path.join(repoRoot, 'scripts', 'codex', 'install-codex-hooks.js');
 const mergeCodexConfigScript = path.join(repoRoot, 'scripts', 'codex', 'merge-codex-config.js');
 const mergeMcpConfigScript = path.join(repoRoot, 'scripts', 'codex', 'merge-mcp-config.js');
 const syncScript = path.join(repoRoot, 'scripts', 'sync-ecc-to-codex.sh');
@@ -39,6 +41,10 @@ function cleanup(dirPath) {
   fs.rmSync(dirPath, { recursive: true, force: true });
 }
 
+function readJson(filePath) {
+  return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+}
+
 function runBash(scriptPath, args = [], env = {}, cwd = repoRoot) {
   return spawnSync('bash', [scriptPath, ...args], {
     cwd,
@@ -51,7 +57,7 @@ function runBash(scriptPath, args = [], env = {}, cwd = repoRoot) {
   });
 }
 
-function runNode(scriptPath, args = [], env = {}, cwd = repoRoot) {
+function runNode(scriptPath, args = [], env = {}, cwd = repoRoot, input = '') {
   return spawnSync('node', [scriptPath, ...args], {
     cwd,
     env: {
@@ -59,6 +65,7 @@ function runNode(scriptPath, args = [], env = {}, cwd = repoRoot) {
       ...env,
     },
     encoding: 'utf8',
+    input,
     stdio: ['pipe', 'pipe', 'pipe'],
   });
 }
@@ -105,6 +112,267 @@ if (os.platform() === 'win32') {
       assert.ok(fs.existsSync(path.join(weirdHooksDir, 'pre-push')));
     } finally {
       cleanup(homeDir);
+    }
+  })
+)
+  passed++;
+else failed++;
+
+if (
+  test('install-codex-hooks dry-run reports generated Codex hooks without mutating target', () => {
+    const tempDir = createTempDir('codex-native-hooks-dry-run-');
+    const hooksPath = path.join(tempDir, 'hooks.json');
+
+    try {
+      const result = runNode(installCodexHooksScript, [
+        hooksPath,
+        '--dry-run',
+        '--command-root',
+        '/tmp/ecc root',
+      ]);
+
+      assert.strictEqual(result.status, 0, `${result.stdout}\n${result.stderr}`);
+      assert.match(result.stdout, /\[dry-run\]/);
+      assert.match(result.stdout, /Codex hooks events:/);
+      assert.match(result.stdout, /PreToolUse/);
+      assert.match(result.stdout, /PostToolUse/);
+      assert.ok(!fs.existsSync(hooksPath), 'dry-run must not write hooks.json');
+    } finally {
+      cleanup(tempDir);
+    }
+  })
+)
+  passed++;
+else failed++;
+
+if (
+  test('install-codex-hooks writes supported events with Codex runner commands', () => {
+    const tempDir = createTempDir('codex-native-hooks-install-');
+    const hooksPath = path.join(tempDir, 'hooks.json');
+
+    try {
+      const result = runNode(installCodexHooksScript, [
+        hooksPath,
+        '--command-root',
+        '/tmp/ecc root',
+      ]);
+
+      assert.strictEqual(result.status, 0, `${result.stdout}\n${result.stderr}`);
+      assert.match(result.stdout, /Installed Codex hooks/);
+
+      const installed = readJson(hooksPath);
+      assert.ok(installed.hooks, 'Expected top-level hooks object');
+      assert.ok(Array.isArray(installed.hooks.PreToolUse));
+      assert.ok(Array.isArray(installed.hooks.PostToolUse));
+      assert.ok(Array.isArray(installed.hooks.Stop));
+      assert.ok(Array.isArray(installed.hooks.SessionStart));
+      assert.ok(!installed.hooks.PreCompact, 'Codex does not currently support PreCompact');
+      assert.ok(!installed.hooks.PostCompact, 'Codex does not currently support PostCompact');
+      assert.ok(!installed.hooks.PostToolUseFailure, 'Codex does not support PostToolUseFailure');
+      assert.ok(!installed.hooks.SessionEnd, 'Codex does not support SessionEnd');
+
+      const serialized = JSON.stringify(installed, null, 2);
+      assert.match(serialized, /scripts\/codex\/codex-hook-runner\.js/);
+      assert.match(serialized, /scripts\/hooks\/pre-bash-dispatcher\.js/);
+      assert.doesNotMatch(serialized, /\.claude/);
+      assert.doesNotMatch(serialized, /CLAUDE_PLUGIN_ROOT/);
+      assert.doesNotMatch(serialized, /"async"/);
+
+      for (const groups of Object.values(installed.hooks)) {
+        for (const group of groups) {
+          assert.ok(!('id' in group), 'Codex hook groups should not carry Claude-only ids');
+          assert.ok(!('description' in group), 'Codex hook groups should not carry Claude-only descriptions');
+          for (const hook of group.hooks) {
+            assert.strictEqual(hook.type, 'command');
+            assert.strictEqual(typeof hook.command, 'string');
+          }
+        }
+      }
+    } finally {
+      cleanup(tempDir);
+    }
+  })
+)
+  passed++;
+else failed++;
+
+if (
+  test('install-codex-hooks preserves custom hooks and is idempotent for ECC hooks', () => {
+    const tempDir = createTempDir('codex-native-hooks-idempotent-');
+    const hooksPath = path.join(tempDir, 'hooks.json');
+    const customHooks = {
+      hooks: {
+        PreToolUse: [
+          {
+            matcher: 'Bash',
+            hooks: [{ type: 'command', command: 'echo custom-pre-bash' }],
+          },
+        ],
+      },
+    };
+
+    try {
+      fs.writeFileSync(hooksPath, JSON.stringify(customHooks, null, 2));
+
+      const first = runNode(installCodexHooksScript, [hooksPath, '--command-root', '/tmp/ecc root']);
+      assert.strictEqual(first.status, 0, `${first.stdout}\n${first.stderr}`);
+      const afterFirst = readJson(hooksPath);
+      const firstSerialized = JSON.stringify(afterFirst);
+      assert.match(firstSerialized, /echo custom-pre-bash/);
+
+      const firstRunnerCommands = firstSerialized.match(/codex-hook-runner\.js/g) || [];
+      assert.ok(firstRunnerCommands.length > 0, 'Expected ECC runner commands');
+
+      const second = runNode(installCodexHooksScript, [hooksPath, '--command-root', '/tmp/ecc root']);
+      assert.strictEqual(second.status, 0, `${second.stdout}\n${second.stderr}`);
+      const afterSecond = readJson(hooksPath);
+      const secondSerialized = JSON.stringify(afterSecond);
+      const secondRunnerCommands = secondSerialized.match(/codex-hook-runner\.js/g) || [];
+
+      assert.match(secondSerialized, /echo custom-pre-bash/);
+      assert.strictEqual(secondRunnerCommands.length, firstRunnerCommands.length);
+    } finally {
+      cleanup(tempDir);
+    }
+  })
+)
+  passed++;
+else failed++;
+
+if (
+  test('codex-hook-runner suppresses Claude pass-through stdout and emits valid Codex JSON', () => {
+    const tempDir = createTempDir('codex-runner-pass-through-');
+    const hookDir = path.join(tempDir, 'scripts', 'hooks');
+    const hookInput = JSON.stringify({
+      hook_event_name: 'PostToolUse',
+      tool_name: 'Bash',
+      tool_input: { command: 'printf ok' },
+    });
+
+    try {
+      fs.mkdirSync(hookDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(hookDir, 'pass-through.js'),
+        "process.stdin.pipe(process.stdout);\n",
+        'utf8'
+      );
+
+      const result = runNode(
+        codexHookRunnerScript,
+        ['script', 'scripts/hooks/pass-through.js'],
+        { ECC_CODEX_HOOK_ROOT: tempDir },
+        repoRoot,
+        hookInput
+      );
+
+      assert.strictEqual(result.status, 0, `${result.stdout}\n${result.stderr}`);
+      assert.deepStrictEqual(JSON.parse(result.stdout), {});
+    } finally {
+      cleanup(tempDir);
+    }
+  })
+)
+  passed++;
+else failed++;
+
+if (
+  test('codex-hook-runner preserves hookSpecificOutput responses from Codex-aware hooks', () => {
+    const tempDir = createTempDir('codex-runner-preserve-output-');
+    const hookDir = path.join(tempDir, 'scripts', 'hooks');
+    const hookOutput = {
+      hookSpecificOutput: {
+        hookEventName: 'SessionStart',
+        additionalContext: 'codex context',
+      },
+    };
+
+    try {
+      fs.mkdirSync(hookDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(hookDir, 'codex-output.js'),
+        `process.stdout.write(${JSON.stringify(JSON.stringify(hookOutput))});\n`,
+        'utf8'
+      );
+
+      const result = runNode(
+        codexHookRunnerScript,
+        ['script', 'scripts/hooks/codex-output.js'],
+        { ECC_CODEX_HOOK_ROOT: tempDir },
+        repoRoot,
+        JSON.stringify({ hook_event_name: 'SessionStart' })
+      );
+
+      assert.strictEqual(result.status, 0, `${result.stdout}\n${result.stderr}`);
+      assert.deepStrictEqual(JSON.parse(result.stdout), hookOutput);
+    } finally {
+      cleanup(tempDir);
+    }
+  })
+)
+  passed++;
+else failed++;
+
+if (
+  test('codex-hook-runner maps Claude exit code 2 to Codex PreToolUse denial JSON', () => {
+    const tempDir = createTempDir('codex-runner-pretool-deny-');
+    const hookDir = path.join(tempDir, 'scripts', 'hooks');
+
+    try {
+      fs.mkdirSync(hookDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(hookDir, 'block.js'),
+        "process.stderr.write('blocked by legacy hook\\n');\nprocess.exit(2);\n",
+        'utf8'
+      );
+
+      const result = runNode(
+        codexHookRunnerScript,
+        ['script', 'scripts/hooks/block.js'],
+        { ECC_CODEX_HOOK_ROOT: tempDir },
+        repoRoot,
+        JSON.stringify({ hook_event_name: 'PreToolUse', tool_name: 'Bash' })
+      );
+
+      assert.strictEqual(result.status, 0, `${result.stdout}\n${result.stderr}`);
+      const output = JSON.parse(result.stdout);
+      assert.strictEqual(output.hookSpecificOutput.hookEventName, 'PreToolUse');
+      assert.strictEqual(output.hookSpecificOutput.permissionDecision, 'deny');
+      assert.match(output.hookSpecificOutput.permissionDecisionReason, /blocked by legacy hook/);
+    } finally {
+      cleanup(tempDir);
+    }
+  })
+)
+  passed++;
+else failed++;
+
+if (
+  test('codex-hook-runner maps Claude exit code 2 to Codex block decisions for Stop-style events', () => {
+    const tempDir = createTempDir('codex-runner-stop-block-');
+    const hookDir = path.join(tempDir, 'scripts', 'hooks');
+
+    try {
+      fs.mkdirSync(hookDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(hookDir, 'block-stop.js'),
+        "process.stderr.write('stop feedback from legacy hook\\n');\nprocess.exit(2);\n",
+        'utf8'
+      );
+
+      const result = runNode(
+        codexHookRunnerScript,
+        ['script', 'scripts/hooks/block-stop.js'],
+        { ECC_CODEX_HOOK_ROOT: tempDir },
+        repoRoot,
+        JSON.stringify({ hook_event_name: 'Stop' })
+      );
+
+      assert.strictEqual(result.status, 0, `${result.stdout}\n${result.stderr}`);
+      const output = JSON.parse(result.stdout);
+      assert.strictEqual(output.decision, 'block');
+      assert.match(output.reason, /stop feedback from legacy hook/);
+    } finally {
+      cleanup(tempDir);
     }
   })
 )
@@ -444,6 +712,8 @@ if (
       assert.strictEqual(parsedConfig.web_search, 'live');
       assert.ok(!Object.prototype.hasOwnProperty.call(parsedConfig, 'multi_agent'));
       assert.ok(parsedConfig.features);
+      assert.strictEqual(parsedConfig.features.codex_hooks, true);
+      assert.strictEqual(parsedConfig.features.hooks, true);
       assert.strictEqual(parsedConfig.features.multi_agent, true);
       assert.ok(parsedConfig.profiles);
       assert.strictEqual(parsedConfig.profiles.strict.approval_policy, 'on-request');
@@ -463,6 +733,12 @@ if (
       for (const roleFile of ['explorer.toml', 'reviewer.toml', 'docs-researcher.toml']) {
         assert.ok(fs.existsSync(path.join(codexDir, 'agents', roleFile)));
       }
+
+      const syncedHooks = readJson(path.join(codexDir, 'hooks.json'));
+      assert.ok(Array.isArray(syncedHooks.hooks.PreToolUse));
+      assert.ok(Array.isArray(syncedHooks.hooks.PostToolUse));
+      assert.match(JSON.stringify(syncedHooks), /scripts\/codex\/codex-hook-runner\.js/);
+      assert.doesNotMatch(JSON.stringify(syncedHooks), /\.claude/);
     } finally {
       cleanup(homeDir);
     }

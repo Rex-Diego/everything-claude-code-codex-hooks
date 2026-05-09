@@ -6,6 +6,7 @@ set -euo pipefail
 # - Merges ECC AGENTS.md into existing AGENTS.md (marker-based, preserves user content)
 # - Generates prompt files from commands/*.md
 # - Generates Codex QA wrappers and optional language rule-pack prompts
+# - Installs Codex-native hooks to ~/.codex/hooks.json
 # - Installs global git safety hooks (pre-commit and pre-push)
 # - Runs a post-sync global regression sanity check
 # - Merges ECC MCP servers into config.toml (add-only via Node TOML parser)
@@ -24,6 +25,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
 
 CONFIG_FILE="$CODEX_HOME/config.toml"
+CODEX_HOOKS_FILE="$CODEX_HOME/hooks.json"
 AGENTS_FILE="$CODEX_HOME/AGENTS.md"
 AGENTS_ROOT_SRC="$REPO_ROOT/AGENTS.md"
 AGENTS_CODEX_SUPP_SRC="$REPO_ROOT/.codex/AGENTS.md"
@@ -32,6 +34,7 @@ CODEX_AGENTS_DEST="$CODEX_HOME/agents"
 PROMPTS_SRC="$REPO_ROOT/commands"
 PROMPTS_DEST="$CODEX_HOME/prompts"
 BASELINE_MERGE_SCRIPT="$REPO_ROOT/scripts/codex/merge-codex-config.js"
+CODEX_HOOKS_INSTALLER="$REPO_ROOT/scripts/codex/install-codex-hooks.js"
 HOOKS_INSTALLER="$REPO_ROOT/scripts/codex/install-global-git-hooks.sh"
 SANITY_CHECKER="$REPO_ROOT/scripts/codex/check-codex-global-state.sh"
 CURSOR_RULES_DIR="$REPO_ROOT/.cursor/rules"
@@ -152,6 +155,7 @@ require_path "$AGENTS_CODEX_SUPP_SRC" "ECC Codex AGENTS supplement"
 require_path "$CODEX_AGENTS_SRC" "ECC Codex agent roles"
 require_path "$PROMPTS_SRC" "ECC commands directory"
 require_path "$BASELINE_MERGE_SCRIPT" "ECC Codex baseline merge script"
+require_path "$CODEX_HOOKS_INSTALLER" "ECC Codex hooks installer"
 require_path "$HOOKS_INSTALLER" "ECC global git hooks installer"
 require_path "$SANITY_CHECKER" "ECC global sanity checker"
 require_path "$CURSOR_RULES_DIR" "ECC Cursor rules directory"
@@ -172,6 +176,9 @@ run_or_echo mkdir -p "$BACKUP_DIR"
 run_or_echo cp "$CONFIG_FILE" "$BACKUP_DIR/config.toml"
 if [[ -f "$AGENTS_FILE" ]]; then
   run_or_echo cp "$AGENTS_FILE" "$BACKUP_DIR/AGENTS.md"
+fi
+if [[ -f "$CODEX_HOOKS_FILE" ]]; then
+  run_or_echo cp "$CODEX_HOOKS_FILE" "$BACKUP_DIR/hooks.json"
 fi
 
 ECC_BEGIN_MARKER="<!-- BEGIN ECC -->"
@@ -497,6 +504,13 @@ if [[ "$MODE" == "dry-run" ]]; then
   node "$MCP_MERGE_SCRIPT" "$CONFIG_FILE" --dry-run $UPDATE_MCP
 else
   node "$MCP_MERGE_SCRIPT" "$CONFIG_FILE" $UPDATE_MCP
+fi
+
+log "Installing Codex native hooks into $CODEX_HOOKS_FILE"
+if [[ "$MODE" == "dry-run" ]]; then
+  node "$CODEX_HOOKS_INSTALLER" "$CODEX_HOOKS_FILE" --dry-run --command-root "$REPO_ROOT"
+else
+  node "$CODEX_HOOKS_INSTALLER" "$CODEX_HOOKS_FILE" --command-root "$REPO_ROOT"
 fi
 
 log "Installing global git safety hooks"

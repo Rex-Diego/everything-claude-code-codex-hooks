@@ -60,6 +60,19 @@ The sync script (`scripts/sync-ecc-to-codex.sh`) uses a Node-based TOML parser t
 - **`--update-mcp`** — explicitly replaces all ECC-managed servers with the latest recommended config (safely removes subtables like `[mcp_servers.supabase.env]`).
 - **User config is always preserved** — custom servers, args, env vars, and credentials outside ECC-managed sections are never touched.
 
+## Codex Hooks
+
+Codex now supports native hooks through `hooks.json`. ECC adapts the canonical `hooks/hooks.json` into a Codex-compatible hook file:
+
+- Project-local default: `.codex/hooks.json`
+- Global sync target: `~/.codex/hooks.json`
+- Config toggle: `[features] codex_hooks = true` and `[features] hooks = true`
+- Runtime adapter: `scripts/codex/codex-hook-runner.js`
+
+The sync script (`scripts/sync-ecc-to-codex.sh`) installs `~/.codex/hooks.json` while preserving existing custom hook groups and replacing only ECC-managed hook groups. Unsupported Claude-only events such as `PostToolUseFailure`, `SessionEnd`, `PreCompact`, and `PostCompact` are not emitted for Codex.
+
+The Codex runner must emit Codex-safe JSON on stdout. Plain Claude-style pass-through output is normalized to `{}`, `PreToolUse` blocks are emitted as `permissionDecision = "deny"`, and Stop/PostToolUse-style exit-code blocks are emitted as `decision = "block"`.
+
 ## External Action Boundaries
 
 Treat networked tools as read-only by default. Search, inspect, and draft freely within the user's requested scope, but require explicit user approval before posting, publishing, pushing, merging, opening paid jobs, dispatching remote agents, changing third-party resources, or modifying credentials.
@@ -84,17 +97,17 @@ Sample role configs in this repo:
 
 | Feature | Claude Code | Codex CLI |
 |---------|------------|-----------|
-| Hooks | 8+ event types | Not yet supported |
+| Hooks | 8+ event types | Native `hooks.json` via ECC Codex adapter |
 | Context file | CLAUDE.md + AGENTS.md | AGENTS.md only |
 | Skills | Skills loaded via plugin | `.agents/skills/` directory |
 | Commands | `/slash` commands | Instruction-based |
 | Agents | Subagent Task tool | Multi-agent via `/agent` and `[agents.<name>]` roles |
-| Security | Hook-based enforcement | Instruction + sandbox |
+| Security | Hook-based enforcement | Hook-based enforcement + sandbox |
 | MCP | Full support | Supported via `config.toml` and `codex mcp add` |
 
-## Security Without Hooks
+## Security With Codex Hooks
 
-Since Codex lacks hooks, security enforcement is instruction-based:
+Use Codex hooks plus instruction/sandbox controls:
 1. Always validate inputs at system boundaries
 2. Never hardcode secrets — use environment variables
 3. Run `npm audit` / `pip audit` before committing

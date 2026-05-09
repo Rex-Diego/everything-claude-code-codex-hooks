@@ -44,6 +44,41 @@ ECC v2.0.0-rc.1 adds the public Hermes operator story on top of that reusable la
 
 ---
 
+## Codex 原生 Hooks 版 / Codex Native Hooks Edition
+
+### 中文
+
+这一版把 ECC 的 Codex 支持从“只靠指令约束”升级为真正可执行的 Codex 原生 `hooks.json`。Codex 现在可以在工具调用前后运行 ECC 的安全、质量、会话和 stop-time 检查，而不是等到事后靠人工或提示词补救。
+
+**核心改动与优势：**
+
+- **原生 Codex hook 配置**：新增 `.codex/hooks.json`，由 ECC 的标准 `hooks/hooks.json` 生成，复用同一套 hook 规则。
+- **修复实际测试中的 JSON 协议报错**：`scripts/codex/codex-hook-runner.js` 不再把 Claude hook 的普通 stdout 原样交给 Codex；普通放行输出 `{}`，阻止 `PreToolUse` 时输出 `permissionDecision: "deny"`，旧式 Stop/PostToolUse 阻止反馈会转成 `decision: "block"`，避免 `invalid pre-tool-use JSON output` / `invalid post-tool-use JSON output`。
+- **复用现有 ECC hook 投资**：Codex 通过同一个 adapter 复用 Claude/Cursor 已验证的 Node hook 脚本，不需要维护一份分叉逻辑。
+- **安全的全局同步**：`scripts/sync-ecc-to-codex.sh` 会安装 `~/.codex/hooks.json`，自动备份旧文件，保留用户自定义 hook，只替换 ECC 管理的 hook 组。
+- **明确的兼容边界**：Codex 不支持的 Claude-only 事件（例如 `PostToolUseFailure`、`SessionEnd`、`PreCompact`、`PostCompact`）会被跳过；支持的 `SessionStart`、`PreToolUse`、`PermissionRequest`、`PostToolUse`、`UserPromptSubmit`、`Stop` 会正常生成。
+- **可回归验证**：新增测试覆盖 hook 生成、dry-run、重复安装幂等性、全局 sync、Codex adapter 输出协议和参考配置。
+
+**直接收益：**
+
+- Codex 可以实时拦截高风险命令、配置误改、质量门禁、会话记录和结束前检查。
+- 用户自己的 Codex hook 自定义项不会被 ECC 升级覆盖。
+- 安装结果是普通 `hooks.json` 文件，方便审查、回滚和版本管理。
+- 旧 Claude hook 的 pass-through 行为被适配成 Codex-safe 输出，减少运行时 hook 噪音和协议错误。
+
+### English
+
+This version upgrades ECC's Codex integration from instruction-only guidance to native Codex `hooks.json` execution. Codex can now run ECC safety, quality, session, and stop-time checks around tool events.
+
+**Highlights:**
+
+- `.codex/hooks.json` is generated from ECC's canonical `hooks/hooks.json`.
+- `scripts/codex/codex-hook-runner.js` adapts legacy Claude hook stdout and exit-code blocks to Codex-safe JSON, fixing invalid pre/post-tool-use hook output errors.
+- `scripts/sync-ecc-to-codex.sh` installs and backs up `~/.codex/hooks.json` while preserving user-defined hook groups.
+- Unsupported Claude-only events are skipped; supported Codex events are emitted with regression coverage.
+
+---
+
 ## The Guides
 
 This repo is the raw code only. The guides explain everything.
@@ -1220,7 +1255,7 @@ ECC provides **first-class Codex support** for both the macOS app and CLI, with 
 # Run Codex CLI in the repo — AGENTS.md and .codex/ are auto-detected
 codex
 
-# Automatic setup: sync ECC assets (AGENTS.md, skills, MCP servers) into ~/.codex
+# Automatic setup: sync ECC assets (AGENTS.md, prompts, MCP servers, hooks) into ~/.codex
 npm install && bash scripts/sync-ecc-to-codex.sh
 # or: pnpm install && bash scripts/sync-ecc-to-codex.sh
 # or: yarn install && bash scripts/sync-ecc-to-codex.sh
@@ -1230,7 +1265,7 @@ npm install && bash scripts/sync-ecc-to-codex.sh
 cp .codex/config.toml ~/.codex/config.toml
 ```
 
-The sync script safely merges ECC MCP servers into your existing `~/.codex/config.toml` using an **add-only** strategy — it never removes or modifies your existing servers. Run with `--dry-run` to preview changes, or `--update-mcp` to force-refresh ECC servers to the latest recommended config.
+The sync script safely merges ECC MCP servers into your existing `~/.codex/config.toml` using an **add-only** strategy — it never removes or modifies your existing servers. It also writes Codex-native hooks to `~/.codex/hooks.json` while preserving custom hook groups. Run with `--dry-run` to preview changes, or `--update-mcp` to force-refresh ECC servers to the latest recommended config.
 
 For Context7, ECC uses the canonical Codex section name `[mcp_servers.context7]` while still launching the `@upstash/context7-mcp` package. If you already have a legacy `[mcp_servers.context7-mcp]` entry, `--update-mcp` migrates it to the canonical section name.
 
@@ -1246,6 +1281,7 @@ Codex macOS app:
 | Component | Count | Details |
 |-----------|-------|---------|
 | Config | 1 | `.codex/config.toml` — top-level approvals/sandbox/web_search, MCP servers, notifications, profiles |
+| Hooks | 1 | `.codex/hooks.json` — Codex-native hook config generated from `hooks/hooks.json` |
 | AGENTS.md | 2 | Root (universal) + `.codex/AGENTS.md` (Codex-specific supplement) |
 | Skills | 32 | `.agents/skills/` — SKILL.md + agents/openai.yaml per skill |
 | MCP Servers | 6 | GitHub, Context7, Exa, Memory, Playwright, Sequential Thinking (7 with Supabase via `--update-mcp` sync) |
@@ -1293,9 +1329,11 @@ Canonical Anthropic skills such as `claude-api`, `frontend-design`, and `skill-c
 | video-editing | AI-assisted video editing workflows with FFmpeg and Remotion |
 | x-api | X/Twitter API integration for posting and analytics |
 
-### Key Limitation
+### Codex Hooks
 
-Codex does **not yet provide Claude-style hook execution parity**. ECC enforcement there is instruction-based via `AGENTS.md`, optional `model_instructions_file` overrides, and sandbox/approval settings.
+Current Codex builds support native hooks through `hooks.json`. ECC adapts its canonical `hooks/hooks.json` into Codex's supported events (`SessionStart`, `PreToolUse`, `PermissionRequest`, `PostToolUse`, `UserPromptSubmit`, `Stop`) through `scripts/codex/codex-hook-runner.js`.
+
+Codex does not currently run every Claude-only event in the ECC hook catalog, so the adapter skips unsupported events such as `PostToolUseFailure` and `SessionEnd`. Existing custom hooks in `~/.codex/hooks.json` are preserved when the sync script runs.
 
 ### Multi-Agent Support
 
@@ -1444,22 +1482,22 @@ ECC is the **first plugin to maximize every major AI coding tool**. Here's how e
 | **Agents** | 48 | Shared (AGENTS.md) | Shared (AGENTS.md) | 12 |
 | **Commands** | 68 | Shared | Instruction-based | 31 |
 | **Skills** | 182 | Shared | 10 (native format) | 37 |
-| **Hook Events** | 8 types | 15 types | None yet | 11 types |
-| **Hook Scripts** | 20+ scripts | 16 scripts (DRY adapter) | N/A | Plugin hooks |
+| **Hook Events** | 8 types | 15 types | Native `hooks.json` subset | 11 types |
+| **Hook Scripts** | 20+ scripts | 16 scripts (DRY adapter) | ECC Codex adapter | Plugin hooks |
 | **Rules** | 34 (common + lang) | 34 (YAML frontmatter) | Instruction-based | 13 instructions |
 | **Custom Tools** | Via hooks | Via hooks | N/A | 6 native tools |
 | **MCP Servers** | 14 | Shared (mcp.json) | 7 (auto-merged via TOML parser) | Full |
 | **Config Format** | settings.json | hooks.json + rules/ | config.toml | opencode.json |
 | **Context File** | CLAUDE.md + AGENTS.md | AGENTS.md | AGENTS.md | AGENTS.md |
-| **Secret Detection** | Hook-based | beforeSubmitPrompt hook | Sandbox-based | Hook-based |
-| **Auto-Format** | PostToolUse hook | afterFileEdit hook | N/A | file.edited hook |
+| **Secret Detection** | Hook-based | beforeSubmitPrompt hook | Hook + sandbox based | Hook-based |
+| **Auto-Format** | PostToolUse hook | afterFileEdit hook | Stop/PostToolUse hooks | file.edited hook |
 | **Version** | Plugin | Plugin | Reference config | 2.0.0-rc.1 |
 
 **Key architectural decisions:**
 - **AGENTS.md** at root is the universal cross-tool file (read by all 4 tools)
 - **DRY adapter pattern** lets Cursor reuse Claude Code's hook scripts without duplication
 - **Skills format** (SKILL.md with YAML frontmatter) works across Claude Code, Codex, and OpenCode
-- Codex's lack of hooks is compensated by `AGENTS.md`, optional `model_instructions_file` overrides, and sandbox permissions
+- Codex uses native `hooks.json`; ECC's adapter reuses the shared Node hook scripts while skipping unsupported Claude-only events
 
 ---
 

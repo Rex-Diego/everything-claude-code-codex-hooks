@@ -38,6 +38,28 @@
 
 ---
 
+## Codex 原生 Hooks 版
+
+这一版把 ECC 的 Codex 支持从“只靠指令约束”升级为真正可执行的 Codex 原生 `hooks.json`。Codex 现在可以在工具调用前后运行 ECC 的安全、质量、会话和 stop-time 检查。
+
+**核心改动与优势：**
+
+- **原生 Codex hook 配置**：新增 `.codex/hooks.json`，由 ECC 的标准 `hooks/hooks.json` 生成，复用同一套 hook 规则。
+- **修复实际测试中的 JSON 协议报错**：`scripts/codex/codex-hook-runner.js` 不再把 Claude hook 的普通 stdout 原样交给 Codex；普通放行输出 `{}`，阻止 `PreToolUse` 时输出 `permissionDecision: "deny"`，旧式 Stop/PostToolUse 阻止反馈会转成 `decision: "block"`，避免 `invalid pre-tool-use JSON output` / `invalid post-tool-use JSON output`。
+- **复用现有 ECC hook 投资**：Codex 通过同一个 adapter 复用 Claude/Cursor 已验证的 Node hook 脚本，不需要维护一份分叉逻辑。
+- **安全的全局同步**：`scripts/sync-ecc-to-codex.sh` 会安装 `~/.codex/hooks.json`，自动备份旧文件，保留用户自定义 hook，只替换 ECC 管理的 hook 组。
+- **明确的兼容边界**：Codex 不支持的 Claude-only 事件（例如 `PostToolUseFailure`、`SessionEnd`、`PreCompact`、`PostCompact`）会被跳过；支持的 `SessionStart`、`PreToolUse`、`PermissionRequest`、`PostToolUse`、`UserPromptSubmit`、`Stop` 会正常生成。
+- **可回归验证**：新增测试覆盖 hook 生成、dry-run、重复安装幂等性、全局 sync、Codex adapter 输出协议和参考配置。
+
+**直接收益：**
+
+- Codex 可以实时拦截高风险命令、配置误改、质量门禁、会话记录和结束前检查。
+- 用户自己的 Codex hook 自定义项不会被 ECC 升级覆盖。
+- 安装结果是普通 `hooks.json` 文件，方便审查、回滚和版本管理。
+- 旧 Claude hook 的 pass-through 行为被适配成 Codex-safe 输出，减少运行时 hook 噪音和协议错误。
+
+---
+
 ## 指南
 
 这个仓库只包含原始代码。指南解释了一切。

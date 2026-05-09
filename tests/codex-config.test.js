@@ -24,6 +24,7 @@ const repoRoot = path.join(__dirname, '..');
 const configPath = path.join(repoRoot, '.codex', 'config.toml');
 const config = fs.readFileSync(configPath, 'utf8');
 const codexAgentsDir = path.join(repoRoot, '.codex', 'agents');
+const codexHooksPath = path.join(repoRoot, '.codex', 'hooks.json');
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -58,6 +59,18 @@ if (
       !/^model_provider\s*=/m.test(config),
       'Expected `.codex/config.toml` to inherit the CLI default provider',
     );
+  })
+)
+  passed++;
+else failed++;
+
+if (
+  test('reference config enables Codex native hooks support', () => {
+    assert.ok(
+      /^\s*codex_hooks\s*=\s*true\s*$/m.test(config) || /^\s*hooks\s*=\s*true\s*$/m.test(config),
+      'Expected `.codex/config.toml` to opt into Codex hooks',
+    );
+    assert.ok(fs.existsSync(codexHooksPath), 'Expected `.codex/hooks.json` to exist');
   })
 )
   passed++;

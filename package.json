@@ -66,6 +66,8 @@
     "scripts/auto-update.js",
     "scripts/claw.js",
     "scripts/codex/merge-codex-config.js",
+    "scripts/codex/codex-hook-runner.js",
+    "scripts/codex/install-codex-hooks.js",
     "scripts/codex/merge-mcp-config.js",
     "scripts/doctor.js",
     "scripts/ecc.js",

@@ -152,7 +152,7 @@ if [[ -f "$CODEX_HOOKS_FILE" ]]; then
     fail "Codex hooks.json missing PreToolUse hooks"
   fi
 
-  if search_file 'scripts/codex/codex-hook-runner\.js' "$CODEX_HOOKS_FILE"; then
+  if search_file 'scripts[\\/]+codex[\\/]+codex-hook-runner\.js' "$CODEX_HOOKS_FILE"; then
     ok "Codex hooks.json uses the ECC Codex hook runner"
   else
     fail "Codex hooks.json missing the ECC Codex hook runner"

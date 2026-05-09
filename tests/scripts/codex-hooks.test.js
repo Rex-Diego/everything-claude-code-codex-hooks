@@ -46,7 +46,7 @@ function readJson(filePath) {
 }
 
 function normalizePathText(value) {
-  return String(value).replace(/\\/g, '/');
+  return String(value).replace(/\\+/g, '/');
 }
 
 function runBash(scriptPath, args = [], env = {}, cwd = repoRoot) {
@@ -238,6 +238,21 @@ if (
     } finally {
       cleanup(tempDir);
     }
+  })
+)
+  passed++;
+else failed++;
+
+if (
+  test('normalizePathText collapses JSON-escaped Windows path separators', () => {
+    const serialized = JSON.stringify({
+      command: 'node "C:\\ecc root\\scripts\\codex\\codex-hook-runner.js"',
+    });
+
+    assert.match(
+      normalizePathText(serialized),
+      /scripts\/codex\/codex-hook-runner\.js/
+    );
   })
 )
   passed++;

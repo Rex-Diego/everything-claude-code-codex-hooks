@@ -45,6 +45,10 @@ function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8'));
 }
 
+function normalizePathText(value) {
+  return String(value).replace(/\\/g, '/');
+}
+
 function runBash(scriptPath, args = [], env = {}, cwd = repoRoot) {
   return spawnSync('bash', [scriptPath, ...args], {
     cwd,
@@ -171,7 +175,7 @@ if (
       assert.ok(!installed.hooks.PostToolUseFailure, 'Codex does not support PostToolUseFailure');
       assert.ok(!installed.hooks.SessionEnd, 'Codex does not support SessionEnd');
 
-      const serialized = JSON.stringify(installed, null, 2);
+      const serialized = normalizePathText(JSON.stringify(installed, null, 2));
       assert.match(serialized, /scripts\/codex\/codex-hook-runner\.js/);
       assert.match(serialized, /scripts\/hooks\/pre-bash-dispatcher\.js/);
       assert.doesNotMatch(serialized, /\.claude/);
@@ -217,7 +221,7 @@ if (
       const first = runNode(installCodexHooksScript, [hooksPath, '--command-root', '/tmp/ecc root']);
       assert.strictEqual(first.status, 0, `${first.stdout}\n${first.stderr}`);
       const afterFirst = readJson(hooksPath);
-      const firstSerialized = JSON.stringify(afterFirst);
+      const firstSerialized = normalizePathText(JSON.stringify(afterFirst));
       assert.match(firstSerialized, /echo custom-pre-bash/);
 
       const firstRunnerCommands = firstSerialized.match(/codex-hook-runner\.js/g) || [];
@@ -226,7 +230,7 @@ if (
       const second = runNode(installCodexHooksScript, [hooksPath, '--command-root', '/tmp/ecc root']);
       assert.strictEqual(second.status, 0, `${second.stdout}\n${second.stderr}`);
       const afterSecond = readJson(hooksPath);
-      const secondSerialized = JSON.stringify(afterSecond);
+      const secondSerialized = normalizePathText(JSON.stringify(afterSecond));
       const secondRunnerCommands = secondSerialized.match(/codex-hook-runner\.js/g) || [];
 
       assert.match(secondSerialized, /echo custom-pre-bash/);
@@ -737,8 +741,9 @@ if (
       const syncedHooks = readJson(path.join(codexDir, 'hooks.json'));
       assert.ok(Array.isArray(syncedHooks.hooks.PreToolUse));
       assert.ok(Array.isArray(syncedHooks.hooks.PostToolUse));
-      assert.match(JSON.stringify(syncedHooks), /scripts\/codex\/codex-hook-runner\.js/);
-      assert.doesNotMatch(JSON.stringify(syncedHooks), /\.claude/);
+      const syncedHooksText = normalizePathText(JSON.stringify(syncedHooks));
+      assert.match(syncedHooksText, /scripts\/codex\/codex-hook-runner\.js/);
+      assert.doesNotMatch(syncedHooksText, /\.claude/);
     } finally {
       cleanup(homeDir);
     }

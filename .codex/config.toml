@@ -2,8 +2,9 @@
 
 # Everything Claude Code (ECC) — Codex Reference Configuration
 #
-# Copy this file to ~/.codex/config.toml for global defaults, or keep it in
-# the project root as .codex/config.toml for project-local settings.
+# This file is project-local, so keep it limited to keys Codex accepts from
+# `.codex/config.toml`. User-level settings such as `notify` and `profiles`
+# belong in `~/.codex/config.toml`.
 #
 # Official docs:
 # - https://developers.openai.com/codex/config-reference
@@ -20,14 +21,6 @@ approval_policy = "on-request"
 sandbox_mode = "workspace-write"
 web_search = "live"
 
-# External notifications receive a JSON payload on stdin.
-notify = [
-  "terminal-notifier",
-  "-title", "Codex ECC",
-  "-message", "Task completed!",
-  "-sound", "default",
-]
-
 # Persistent instructions are appended to every prompt (additive, unlike
 # model_instructions_file which replaces AGENTS.md).
 persistent_instructions = "Follow project AGENTS.md guidelines. Use available MCP servers when they can help."
@@ -40,11 +33,13 @@ persistent_instructions = "Follow project AGENTS.md guidelines. Use available MC
 # Keep the default project set lean. API-backed servers inherit credentials from
 # the launching environment or can be supplied by a user-level ~/.codex/config.toml.
 [mcp_servers.github]
+enabled = false
 command = "npx"
 args = ["-y", "@modelcontextprotocol/server-github"]
 startup_timeout_sec = 30
 
 [mcp_servers.context7]
+enabled = false
 command = "npx"
 # Canonical Codex section name is `context7`; the package itself remains
 # `@upstash/context7-mcp`.
@@ -52,19 +47,23 @@ args = ["-y", "@upstash/context7-mcp@latest"]
 startup_timeout_sec = 30
 
 [mcp_servers.exa]
+enabled = false
 url = "https://mcp.exa.ai/mcp"
 
 [mcp_servers.memory]
+enabled = false
 command = "npx"
 args = ["-y", "@modelcontextprotocol/server-memory"]
 startup_timeout_sec = 30
 
 [mcp_servers.playwright]
+enabled = false
 command = "npx"
 args = ["-y", "@playwright/mcp@latest", "--extension"]
 startup_timeout_sec = 30
 
 [mcp_servers.sequential-thinking]
+enabled = false
 command = "npx"
 args = ["-y", "@modelcontextprotocol/server-sequential-thinking"]
 startup_timeout_sec = 30
@@ -89,23 +88,11 @@ startup_timeout_sec = 30
 [features]
 # Codex hooks are stable in current builds. ECC stores the generated hook
 # configuration in `hooks.json` so project-local and global setups can share it.
-codex_hooks = true
 hooks = true
 
 # Codex multi-agent collaboration is stable and on by default in current builds.
 # Keep the explicit toggle here so the repo documents its expectation clearly.
 multi_agent = true
-
-# Profiles — switch with `codex -p <name>`
-[profiles.strict]
-approval_policy = "on-request"
-sandbox_mode = "read-only"
-web_search = "cached"
-
-[profiles.yolo]
-approval_policy = "never"
-sandbox_mode = "workspace-write"
-web_search = "live"
 
 [agents]
 # Multi-agent role limits and local role definitions.

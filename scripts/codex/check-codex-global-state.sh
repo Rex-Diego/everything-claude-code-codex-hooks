@@ -97,7 +97,8 @@ if [[ -f "$AGENTS_FILE" ]]; then
 fi
 
 if [[ -f "$CONFIG_FILE" ]]; then
-  check_config_pattern '^(codex_hooks|hooks)[[:space:]]*=[[:space:]]*true' "Codex hooks are enabled"
+  check_config_pattern '^hooks[[:space:]]*=[[:space:]]*true' "Codex hooks are enabled"
+  check_config_absent '^codex_hooks[[:space:]]*=' "deprecated codex_hooks flag is absent"
   check_config_pattern '^multi_agent[[:space:]]*=[[:space:]]*true' "multi_agent is enabled"
   check_config_absent '^[[:space:]]*collab[[:space:]]*=' "deprecated collab flag is absent"
   # persistent_instructions is recommended but optional; warn instead of fail
@@ -107,9 +108,6 @@ if [[ -f "$CONFIG_FILE" ]]; then
   else
     warn "persistent_instructions is not set (recommended but optional)"
   fi
-  check_config_pattern '^\[profiles\.strict\]' "profiles.strict exists"
-  check_config_pattern '^\[profiles\.yolo\]' "profiles.yolo exists"
-
   for section in \
     'mcp_servers.github' \
     'mcp_servers.memory' \

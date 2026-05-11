@@ -76,9 +76,9 @@ const GH_BOOTSTRAP = `token=$(gh auth token 2>/dev/null || true); if [ -n "$toke
  */
 function dlxServer(name, pkg, extraFields, extraToml) {
   const args = [...PM_EXEC_PARTS.slice(1), pkg];
-  const fields = { command: PM_EXEC_PARTS[0], args, ...extraFields };
+  const fields = { enabled: false, command: PM_EXEC_PARTS[0], args, ...extraFields };
   const argsStr = JSON.stringify(args).replace(/,/g, ', ');
-  let toml = `[mcp_servers.${name}]\ncommand = "${PM_EXEC_PARTS[0]}"\nargs = ${argsStr}`;
+  let toml = `[mcp_servers.${name}]\nenabled = false\ncommand = "${PM_EXEC_PARTS[0]}"\nargs = ${argsStr}`;
   if (extraToml) toml += '\n' + extraToml;
   return { fields, toml };
 }
@@ -92,12 +92,12 @@ const ECC_SERVERS = {
   playwright: dlxServer('playwright', '@playwright/mcp@latest', { startup_timeout_sec: DEFAULT_MCP_STARTUP_TIMEOUT_SEC }, DEFAULT_MCP_STARTUP_TIMEOUT_TOML),
   context7: dlxServer('context7', '@upstash/context7-mcp@latest', { startup_timeout_sec: DEFAULT_MCP_STARTUP_TIMEOUT_SEC }, DEFAULT_MCP_STARTUP_TIMEOUT_TOML),
   exa: {
-    fields: { url: 'https://mcp.exa.ai/mcp' },
-    toml: `[mcp_servers.exa]\nurl = "https://mcp.exa.ai/mcp"`
+    fields: { enabled: false, url: 'https://mcp.exa.ai/mcp' },
+    toml: `[mcp_servers.exa]\nenabled = false\nurl = "https://mcp.exa.ai/mcp"`
   },
   github: {
-    fields: { command: 'bash', args: ['-lc', GH_BOOTSTRAP], startup_timeout_sec: DEFAULT_MCP_STARTUP_TIMEOUT_SEC },
-    toml: `[mcp_servers.github]\ncommand = "bash"\nargs = ["-lc", ${JSON.stringify(GH_BOOTSTRAP)}]\n${DEFAULT_MCP_STARTUP_TIMEOUT_TOML}`
+    fields: { enabled: false, command: 'bash', args: ['-lc', GH_BOOTSTRAP], startup_timeout_sec: DEFAULT_MCP_STARTUP_TIMEOUT_SEC },
+    toml: `[mcp_servers.github]\nenabled = false\ncommand = "bash"\nargs = ["-lc", ${JSON.stringify(GH_BOOTSTRAP)}]\n${DEFAULT_MCP_STARTUP_TIMEOUT_TOML}`
   },
   memory: dlxServer('memory', '@modelcontextprotocol/server-memory', { startup_timeout_sec: DEFAULT_MCP_STARTUP_TIMEOUT_SEC }, DEFAULT_MCP_STARTUP_TIMEOUT_TOML),
   'sequential-thinking': dlxServer('sequential-thinking', '@modelcontextprotocol/server-sequential-thinking', { startup_timeout_sec: DEFAULT_MCP_STARTUP_TIMEOUT_SEC }, DEFAULT_MCP_STARTUP_TIMEOUT_TOML)

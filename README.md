@@ -1261,8 +1261,8 @@ npm install && bash scripts/sync-ecc-to-codex.sh
 # or: yarn install && bash scripts/sync-ecc-to-codex.sh
 # or: bun install && bash scripts/sync-ecc-to-codex.sh
 
-# Or manually: copy the reference config to your home directory
-cp .codex/config.toml ~/.codex/config.toml
+# Or manually: merge selected settings from `.codex/config.toml` into your
+# home config. Do not blindly overwrite `~/.codex/config.toml`.
 ```
 
 The sync script safely merges ECC MCP servers into your existing `~/.codex/config.toml` using an **add-only** strategy — it never removes or modifies your existing servers. It also writes Codex-native hooks to `~/.codex/hooks.json` while preserving custom hook groups. Run with `--dry-run` to preview changes, or `--update-mcp` to force-refresh ECC servers to the latest recommended config.
@@ -1274,18 +1274,17 @@ Codex macOS app:
 - The root `AGENTS.md` is auto-detected.
 - `.codex/config.toml` and `.codex/agents/*.toml` work best when kept project-local.
 - The reference `.codex/config.toml` intentionally does not pin `model` or `model_provider`, so Codex uses its own current default unless you override it.
-- Optional: copy `.codex/config.toml` to `~/.codex/config.toml` for global defaults; keep the multi-agent role files project-local unless you also copy `.codex/agents/`.
+- Optional: merge `.codex/config.toml` into `~/.codex/config.toml` for global defaults; keep the multi-agent role files project-local unless you also copy `.codex/agents/`.
 
 ### What's Included
 
 | Component | Count | Details |
 |-----------|-------|---------|
-| Config | 1 | `.codex/config.toml` — top-level approvals/sandbox/web_search, MCP servers, notifications, profiles |
+| Config | 1 | `.codex/config.toml` — project-local approvals/sandbox/web_search, MCP servers, hooks, and agent roles |
 | Hooks | 1 | `.codex/hooks.json` — Codex-native hook config generated from `hooks/hooks.json` |
 | AGENTS.md | 2 | Root (universal) + `.codex/AGENTS.md` (Codex-specific supplement) |
 | Skills | 32 | `.agents/skills/` — SKILL.md + agents/openai.yaml per skill |
-| MCP Servers | 6 | GitHub, Context7, Exa, Memory, Playwright, Sequential Thinking (7 with Supabase via `--update-mcp` sync) |
-| Profiles | 2 | `strict` (read-only sandbox) and `yolo` (full auto-approve) |
+| MCP Servers | 6 | GitHub, Context7, Exa, Memory, Playwright, Sequential Thinking; all project-local entries are opt-in with `enabled = false` (7 with Supabase via `--update-mcp` sync) |
 | Agent Roles | 3 | `.codex/agents/` — explorer, reviewer, docs-researcher |
 
 ### Skills

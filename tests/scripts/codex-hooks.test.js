@@ -501,8 +501,9 @@ if (
       assert.strictEqual(parsed.sandbox_mode, 'workspace-write');
       assert.strictEqual(parsed.web_search, 'live');
       assert.strictEqual(parsed.features.multi_agent, true);
-      assert.strictEqual(parsed.profiles.strict.approval_policy, 'on-request');
-      assert.strictEqual(parsed.profiles.yolo.approval_policy, 'never');
+      assert.ok(!Object.prototype.hasOwnProperty.call(parsed.features, 'codex_hooks'));
+      assert.ok(!Object.prototype.hasOwnProperty.call(parsed, 'profiles'));
+      assert.ok(!Object.prototype.hasOwnProperty.call(parsed, 'notify'));
       assert.strictEqual(parsed.agents.max_threads, 6);
       assert.strictEqual(parsed.agents.explorer.config_file, 'agents/explorer.toml');
     } finally {
@@ -618,6 +619,12 @@ if (
 
       const merged = fs.readFileSync(configPath, 'utf8');
       const parsed = TOML.parse(merged);
+      assert.strictEqual(parsed.mcp_servers.github.enabled, false);
+      assert.strictEqual(parsed.mcp_servers.memory.enabled, false);
+      assert.strictEqual(parsed.mcp_servers.playwright.enabled, false);
+      assert.strictEqual(parsed.mcp_servers.context7.enabled, false);
+      assert.strictEqual(parsed.mcp_servers['sequential-thinking'].enabled, false);
+      assert.strictEqual(parsed.mcp_servers.exa.enabled, false);
       assert.strictEqual(parsed.mcp_servers.exa.url, 'https://mcp.exa.ai/mcp');
       assert.strictEqual(parsed.mcp_servers.github.command, 'bash');
       assert.deepStrictEqual(parsed.mcp_servers.memory.args, ['@modelcontextprotocol/server-memory']);
@@ -766,12 +773,11 @@ if (
       assert.strictEqual(parsedConfig.web_search, 'live');
       assert.ok(!Object.prototype.hasOwnProperty.call(parsedConfig, 'multi_agent'));
       assert.ok(parsedConfig.features);
-      assert.strictEqual(parsedConfig.features.codex_hooks, true);
+      assert.ok(!Object.prototype.hasOwnProperty.call(parsedConfig.features, 'codex_hooks'));
       assert.strictEqual(parsedConfig.features.hooks, true);
       assert.strictEqual(parsedConfig.features.multi_agent, true);
-      assert.ok(parsedConfig.profiles);
-      assert.strictEqual(parsedConfig.profiles.strict.approval_policy, 'on-request');
-      assert.strictEqual(parsedConfig.profiles.yolo.approval_policy, 'never');
+      assert.ok(!Object.prototype.hasOwnProperty.call(parsedConfig, 'profiles'));
+      assert.ok(!Object.prototype.hasOwnProperty.call(parsedConfig, 'notify'));
       assert.ok(parsedConfig.agents);
       assert.strictEqual(parsedConfig.agents.max_threads, 6);
       assert.strictEqual(parsedConfig.agents.max_depth, 1);
@@ -779,10 +785,15 @@ if (
       assert.strictEqual(parsedConfig.agents.reviewer.config_file, 'agents/reviewer.toml');
       assert.strictEqual(parsedConfig.agents.docs_researcher.config_file, 'agents/docs-researcher.toml');
       assert.ok(parsedConfig.mcp_servers.exa);
+      assert.strictEqual(parsedConfig.mcp_servers.exa.enabled, false);
       assert.ok(parsedConfig.mcp_servers.github);
+      assert.strictEqual(parsedConfig.mcp_servers.github.enabled, false);
       assert.ok(parsedConfig.mcp_servers.memory);
+      assert.strictEqual(parsedConfig.mcp_servers.memory.enabled, false);
       assert.ok(parsedConfig.mcp_servers['sequential-thinking']);
+      assert.strictEqual(parsedConfig.mcp_servers['sequential-thinking'].enabled, false);
       assert.ok(parsedConfig.mcp_servers.context7);
+      assert.strictEqual(parsedConfig.mcp_servers.context7.enabled, false);
 
       for (const roleFile of ['explorer.toml', 'reviewer.toml', 'docs-researcher.toml']) {
         assert.ok(fs.existsSync(path.join(codexDir, 'agents', roleFile)));

@@ -23,16 +23,8 @@ try {
   process.exit(1);
 }
 
-const ROOT_KEYS = ['approval_policy', 'sandbox_mode', 'web_search', 'notify', 'persistent_instructions'];
-const TABLE_PATHS = [
-  'features',
-  'profiles.strict',
-  'profiles.yolo',
-  'agents',
-  'agents.explorer',
-  'agents.reviewer',
-  'agents.docs_researcher',
-];
+const ROOT_KEYS = ['approval_policy', 'sandbox_mode', 'web_search', 'persistent_instructions'];
+const TABLE_PATHS = ['features', 'agents', 'agents.explorer', 'agents.reviewer', 'agents.docs_researcher'];
 const TOML_HEADER_RE = /^[ \t]*(?:\[[^[\]\n][^\]\n]*\]|\[\[[^[\]\n][^\]\n]*\]\])[ \t]*(?:#.*)?$/m;
 
 function log(message) {

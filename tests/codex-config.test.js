@@ -67,10 +67,39 @@ else failed++;
 if (
   test('reference config enables Codex native hooks support', () => {
     assert.ok(
-      /^\s*codex_hooks\s*=\s*true\s*$/m.test(config) || /^\s*hooks\s*=\s*true\s*$/m.test(config),
+      /^\s*hooks\s*=\s*true\s*$/m.test(config),
       'Expected `.codex/config.toml` to opt into Codex hooks',
     );
+    assert.ok(
+      !/^\s*codex_hooks\s*=/m.test(config),
+      'Expected `.codex/config.toml` to avoid deprecated [features].codex_hooks',
+    );
     assert.ok(fs.existsSync(codexHooksPath), 'Expected `.codex/hooks.json` to exist');
+  })
+)
+  passed++;
+else failed++;
+
+if (
+  test('reference config avoids keys ignored in project-local config', () => {
+    assert.ok(!/^notify\s*=/m.test(config), 'Expected `.codex/config.toml` to avoid project-local notify');
+    assert.ok(!/^\s*\[profiles(?:\.|\])/.test(config), 'Expected `.codex/config.toml` to avoid project-local profiles');
+  })
+)
+  passed++;
+else failed++;
+
+if (
+  test('reference config keeps MCP servers opt-in', () => {
+    const mcpServers = ['github', 'context7', 'exa', 'memory', 'playwright', 'sequential-thinking'];
+
+    for (const server of mcpServers) {
+      const section = getTomlSection(config, `mcp_servers.${server}`);
+      assert.ok(
+        /^\s*enabled\s*=\s*false\s*$/m.test(section),
+        `Expected \`.codex/config.toml\` to avoid auto-starting MCP server: ${server}`,
+      );
+    }
   })
 )
   passed++;
